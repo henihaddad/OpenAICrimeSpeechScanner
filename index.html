@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Audio Recorder with Analysis</title>
+</head>
+
+<body>
+    <button id="startRecording">Start Recording</button>
+    <button id="stopRecording" disabled>Stop Recording</button>
+    <div id="responses">
+        <h3>Responses:</h3>
+        <ul id="responseList"></ul>
+    </div>
+
+    <script>
+        const startRecording = document.getElementById('startRecording');
+        const stopRecording = document.getElementById('stopRecording');
+        const responseList = document.getElementById('responseList');
+        let mediaRecorder;
+        let audioChunks = [];
+
+        startRecording.addEventListener('click', () => {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    // mediaRecorder.start();
+                    // console.log("hey " + mediaRecorder.state);
+                    // mediaRecorder.addEventListener("dataavailable", event => {
+                    //     audioChunks.push(event.data);
+                    //     if (mediaRecorder.state === 'recording' && audioChunks.length >= 5) {
+                    //         console.log('Sending chunk to server')
+                    //         sendChunkToServer();
+                    //     }
+                    // });
+                    mediaRecorder.start(5000); // Start recording with a timeslice of 5000ms (5 seconds)
+
+                    mediaRecorder.addEventListener("dataavailable", event => {
+                        audioChunks.push(event.data);
+                        console.log('Chunk received, total chunks:', audioChunks.length);
+                        if (mediaRecorder.state === 'recording' && audioChunks.length >= 5) {
+                            console.log('Sending chunk to server');
+                            sendChunkToServer();
+                        }
+                    });
+
+
+                    startRecording.disabled = true;
+                    stopRecording.disabled = false;
+                });
+        });
+
+        stopRecording.addEventListener('click', () => {
+            mediaRecorder.stop();
+            startRecording.disabled = false;
+            stopRecording.disabled = true;
+        });
+
+        function sendChunkToServer() {
+            const chunk = audioChunks.splice(0, 1)[0]; // Get the first chunk
+            const formData = new FormData();
+            formData.append("file", chunk, "chunk.wav");
+
+            fetch('http://127.0.0.1:8000/analyze-voice/', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    displayResponse(data.category);
+                })
+                .catch(error => {
+                    console.error('Error during fetch operation:', error.message);
+                });
+
+        }
+
+        function displayResponse(response) {
+    if (response != null && response != undefined) {
+        const listItem = document.createElement('li');
+        listItem.textContent = response;
+        responseList.appendChild(listItem);
+    }
+}
+    </script>
+</body>
+
+</html>
